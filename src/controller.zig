@@ -155,8 +155,8 @@ pub const FdfController = struct {
         self.*.rendering_parameters = RenderingParameters{
             .screen_width = 0,
             .screen_height = 0,
-            .screen_center = Vec3.init(200, 200, 1),
-            .translation = Vec3.init(500, 500, 1),
+            .screen_center = Vec3.init(1, 1, 1),
+            .translation = Vec3.init(1, 1, 1),
             .sin_rotates = Vec3.init(1, 1, 1),
             .cos_rotates = Vec3.init(1, 1, 1),
             .zoom_level = 1.0,
@@ -182,7 +182,7 @@ pub const FdfController = struct {
                     var x: usize = 0;
                     while (x < self.width) : (x += 1) {
                         const pixel = rendered[y][x];
-                        self.mlx.putPixelImage(pixel.x, pixel.y, pixel.color);
+                        self.mlx.putPixelImage(pixel.x, pixel.y, 0x00FFFFFF);
                     }
                 }
                 self.is_dirty = true;
