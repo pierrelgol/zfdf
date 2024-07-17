@@ -3,7 +3,7 @@ const opt = @import("builtin");
 const ctrl = @import("controller.zig");
 const MlxBackend = @import("backend.zig").MlxBackend;
 const FdfController = ctrl.FdfController;
-const fdf_map = @embedFile("elem2.fdf");
+const fdf_map = @embedFile("elem-fract.fdf");
 
 pub const ConfigError = error{
     missing_arguments,
@@ -58,7 +58,7 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
-    var fdf = try FdfController.init(allocator, fdf_map, 20, 20);
+    var fdf = try FdfController.init(allocator, fdf_map, 500, 500);
     try fdf.startRendering();
     defer fdf.deinit();
 }
