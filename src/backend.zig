@@ -100,6 +100,7 @@ pub const MlxBackend = struct {
         for (slice) |*item| {
             item.* = color;
         }
+        return (true);
     }
 
     pub fn destroyDisplay(self: *MlxBackend) bool {
@@ -127,10 +128,6 @@ pub const MlxBackend = struct {
         return (false);
     }
 
-    pub fn destroyImageBuffer(self: *MlxBackend) bool {
-        _ = self; // autofix
-        return (false);
-    }
 
     pub fn keyAutorepeatOn(self: *MlxBackend) bool {
         if (self.*.mlx_ptr) |_| {

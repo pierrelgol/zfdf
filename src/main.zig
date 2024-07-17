@@ -5,6 +5,19 @@ const MlxBackend = @import("backend.zig").MlxBackend;
 const FdfController = ctrl.FdfController;
 const fdf_map = @embedFile("elem-fract.fdf");
 
+pub fn findDimension(map_data: []const u8, out_height: *i32, out_width: *i32) void {
+    var row_iterator = std.mem.tokenizeScalar(u8, map_data, '\n');
+    var y: i32 = 0;
+    var x: i32 = 0;
+    while (row_iterator.next()) |map_row| : (y += 1) {
+        var entry_iterator = std.mem.tokenizeScalar(u8, map_row, ' ');
+        x = 0;
+        while (entry_iterator.next()) |_| : (x += 1) {}
+    }
+    out_height.* = y;
+    out_width.* = x;
+}
+
 pub const ConfigError = error{
     missing_arguments,
     missing_file_path,
@@ -58,7 +71,10 @@ pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
-    var fdf = try FdfController.init(allocator, fdf_map, 500, 500);
+    var dimx :i32 =  0;
+    var dimy :i32 =  0;
+    findDimension(fdf_map, &dimx, &dimy);
+    var fdf = try FdfController.init(allocator, fdf_map, dimx, dimy);
     try fdf.startRendering();
     defer fdf.deinit();
 }

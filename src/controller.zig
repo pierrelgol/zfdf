@@ -73,7 +73,7 @@ pub const Camera = struct {
             .forward => Vec3{ .x = 0, .y = 0, .z = -step },
             .backward => Vec3{ .x = 0, .y = 0, .z = step },
         };
-        self.position.add(offset_vec);
+        self.position = self.position.add(offset_vec);
     }
 
     pub fn rotate(self: *Camera, action: Rotate) void {
@@ -86,11 +86,7 @@ pub const Camera = struct {
             .yaw_more => Vec3{ .x = 0, .y = 0, .z = -step },
             .yaw_less => Vec3{ .x = 0, .y = 0, .z = step },
         };
-        self.position.add(offset_vec);
-    }
-
-    pub fn zoom(self: *Camera, amount: f32) void {
-        self.*.zoom += amount;
+        self.rotation = self.rotation.add(offset_vec);
     }
 
     pub fn fillRenderingParameters(self: *Camera, out_parameters: *RenderingParameters) void {
@@ -130,6 +126,32 @@ pub const CommandCode = enum(u32) {
     reset_state = 997,
     change_projection = 888,
     quit = 65307,
+
+    pub fn toEnum(keycode: i32) CommandCode {
+        return switch (keycode) {
+            0 => return .ignore,
+            65361 => return .move_left,
+            65363 => return .move_right,
+            65362 => return .move_up,
+            65364 => return .move_down,
+            119 => return .move_forward,
+            115 => return .move_backward,
+            97 => return .rota_pitch_more,
+            100 => return .rota_pitch_less,
+            112 => return .rota_roll_more,
+            101 => return .rota_roll_less,
+            777 => return .rota_yaw_more,
+            776 => return .rota_yaw_less,
+            61 => return .zoom_more,
+            45 => return .zoom_less,
+            999 => return .scale_more,
+            998 => return .scale_less,
+            997 => return .reset_state,
+            888 => return .change_projection,
+            65307 => return .quit,
+            else => .ignore,
+        };
+    }
 };
 
 pub const FdfController = struct {
@@ -165,7 +187,7 @@ pub const FdfController = struct {
         self.*.map_input = try Map.initWithCapacity(allocator, height, width);
         try Map.parse(self.map_input, map_data);
         self.*.renderer = try Renderer.init(allocator, self.map_input, self.rendering_parameters);
-        self.*.mlx = try MlxBackend.init(allocator, 800, 600, name);
+        self.*.mlx = try MlxBackend.init(allocator, 1920, 1080, name);
         self.is_dirty = false;
         return (self);
     }
@@ -182,31 +204,64 @@ pub const FdfController = struct {
             .move_down => fdf_controller.camera.move(.down),
             .move_forward => fdf_controller.camera.move(.forward),
             .move_backward => fdf_controller.camera.move(.backward),
+            .zoom_more => fdf_controller.camera.zoom += 1,
+            .zoom_less => fdf_controller.camera.zoom -= 1,
+            .rota_pitch_more => fdf_controller.camera.rotate(.pitch_up),
+            .rota_pitch_less => fdf_controller.camera.rotate(.pitch_down),
+            .rota_roll_more => fdf_controller.camera.rotate(.roll_left),
+            .rota_roll_less => fdf_controller.camera.rotate(.roll_right),
+            .rota_yaw_more => fdf_controller.camera.rotate(.yaw_more),
+            .rota_yaw_less => fdf_controller.camera.rotate(.yaw_less),
             .quit => fdf_controller.deinitAndDie(),
             else => return (0),
         }
+        fdf_controller.draw();
+        return (0);
+    }
+
+    pub fn on_program_quit(arg: ?*anyopaque) callconv(.C) c_int {
+        const maybe_fdf_controller = @as(?*FdfController, @alignCast(@ptrCast(arg)));
+        const fdf_controller = maybe_fdf_controller orelse return (0);
+        fdf_controller.deinitAndDie();
+        return (0);
     }
 
     pub fn startRendering(self: *FdfController) !void {
-        while (true) {
-            if (self.is_dirty) {
-                try self.renderer.reset();
-                self.is_dirty = false;
-            }
-            if (try self.renderer.render()) |rendered| {
-                var y: usize = 0;
-                while (y < self.height - 1) : (y += 1) {
-                    var x: usize = 0;
-                    while (x < self.width - 1) : (x += 1) {
-                        self.drawLine(rendered[y + 1][x], rendered[y][x]);
-                        self.drawLine(rendered[y][x + 1], rendered[y][x]);
-                    }
-                }
-                self.is_dirty = true;
-                _ = self.mlx.putImageToWindow(0, 0);
-                _ = self.mlx.doSync();
+        _ = self.mlx.genericHookOne(17, 9, on_program_quit, @alignCast(@ptrCast(self)));
+        _ = self.mlx.keyHookTwo(fdfKeyHandler, @alignCast(@ptrCast(self)));
+        _ = self.mlx.loopStart();
+    }
+
+    pub fn clear(self: *FdfController) void {
+        var height: i32 = 0;
+        while (height < self.mlx.height) : (height += 1) {
+            var width: i32 = 0;
+            while (width < self.mlx.width) : (width += 1) {
+                self.mlx.putPixelImage(height, width, 0x00_00_00_00);
             }
         }
+        self.renderer.reset() catch unreachable;
+        self.is_dirty = false;
+    }
+
+    pub fn draw(self: *FdfController) void {
+        self.clear();
+        self.camera.fillRenderingParameters(&self.renderer.parameters);
+        const maybe_rendered = self.renderer.render() catch unreachable;
+        const rendered = maybe_rendered orelse unreachable;
+        var height: usize = 0;
+        while (height < self.height - 1) : (height += 1) {
+            var width: usize = 0;
+            while (width < self.width - 1) : (width += 1) {
+                if (height + 1 < self.height and height + 1 < self.mlx.dheight)
+                    self.drawLine(rendered[height][width], rendered[height + 1][width]);
+                if (width + 1 < self.width and width + 1 < self.mlx.dwidth)
+                    self.drawLine(rendered[height][width], rendered[height][width + 1]);
+            }
+        }
+        self.is_dirty = true;
+        _ = self.mlx.putImageToWindow(0, 0);
+        _ = self.mlx.doSync();
     }
 
     pub fn drawLine(self: *FdfController, start: Pixel, end: Pixel) void {

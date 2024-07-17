@@ -55,6 +55,8 @@ pub const Map = struct {
     pub fn getColorBufferCopy(self: *Map, allocator: Allocator) Allocator.Error![]Color {
         return (try allocator.dupe(Color, self.color_buffer.items[0..]));
     }
+
+
     pub fn parse(self: *Map, map_data: []const u8) MapError!void {
         const height: usize = @intCast(self.height);
         const width: usize = @intCast(self.width);

@@ -41,7 +41,7 @@ pub const Renderer = struct {
     arena: ArenaAllocator,
     allocator: Allocator,
 
-    parameters: ?RenderingParameters,
+    parameters: RenderingParameters,
     map_input: *Map,
 
     height: usize,
@@ -108,12 +108,11 @@ pub const Renderer = struct {
             }
             break :blk try buffer.toOwnedSlice();
         };
-        self.parameters = null;
         self.is_dirty = false;
     }
 
     pub fn render(self: *Renderer) !?[][]Pixel {
-        const parameters = self.parameters orelse return (null);
+        const parameters = self.parameters;
         defer self.is_dirty = true;
         var pixel_buffer = try ArrayList(Pixel).initCapacity(self.allocator, self.width * self.height);
 
