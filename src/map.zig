@@ -82,7 +82,7 @@ pub const Map = struct {
                         return MapError.InvalidValue;
                     self.color_buffer.appendAssumeCapacity(Color.initFromHexToRGBA(color));
                 } else {
-                    self.color_buffer.appendAssumeCapacity(Color.initFromHexToRGBA(10000));
+                    self.color_buffer.appendAssumeCapacity(Color.initFromHexToRGBA(white));
                 }
             }
         }

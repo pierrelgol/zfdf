@@ -109,27 +109,27 @@ pub const Camera = struct {
     }
 };
 
-pub const CommandCode = enum {
-    ignore,
-    move_left,
-    move_right,
-    move_up,
-    move_down,
-    move_forward,
-    move_backward,
-    rota_pitch_more,
-    rota_pitch_less,
-    rota_roll_more,
-    rota_roll_less,
-    rota_yaw_more,
-    rota_yaw_less,
-    zoom_more,
-    zoom_less,
-    scale_more,
-    scale_less,
-    reset_state,
-    change_projection,
-    quit,
+pub const CommandCode = enum(u32) {
+    ignore = 0,
+    move_left = 65361,
+    move_right = 65363,
+    move_up = 65362,
+    move_down = 65364,
+    move_forward = 119,
+    move_backward = 115,
+    rota_pitch_more = 97,
+    rota_pitch_less = 100,
+    rota_roll_more = 112,
+    rota_roll_less = 101,
+    rota_yaw_more = 777,
+    rota_yaw_less = 776,
+    zoom_more = 61,
+    zoom_less = 45,
+    scale_more = 999,
+    scale_less = 998,
+    reset_state = 997,
+    change_projection = 888,
+    quit = 65307,
 };
 
 pub const FdfController = struct {
@@ -155,11 +155,11 @@ pub const FdfController = struct {
         self.*.rendering_parameters = RenderingParameters{
             .screen_width = 0,
             .screen_height = 0,
-            .screen_center = Vec3.init(1, 1, 1),
-            .translation = Vec3.init(1, 1, 1),
-            .sin_rotates = Vec3.init(1, 1, 1),
-            .cos_rotates = Vec3.init(1, 1, 1),
-            .zoom_level = 1.0,
+            .screen_center = Vec3.init(400, 300, 1),
+            .translation = Vec3.init(0, 0, 0),
+            .sin_rotates = Vec3.init(30, 20, 0),
+            .cos_rotates = Vec3.init(30, 20, 0),
+            .zoom_level = 1.5,
         };
         self.*.camera.fillRenderingParameters(&self.rendering_parameters);
         self.*.map_input = try Map.initWithCapacity(allocator, height, width);
@@ -170,6 +170,23 @@ pub const FdfController = struct {
         return (self);
     }
 
+    pub fn fdfKeyHandler(keycode: i32, arg: ?*anyopaque) callconv(.C) c_int {
+        const maybe_fdf_controller = @as(?*FdfController, @alignCast(@ptrCast(arg)));
+        const fdf_controller = maybe_fdf_controller orelse return (0);
+        const action = CommandCode.toEnum(keycode);
+        switch (action) {
+            .ignore => return (0),
+            .move_left => fdf_controller.camera.move(.left),
+            .move_right => fdf_controller.camera.move(.right),
+            .move_up => fdf_controller.camera.move(.up),
+            .move_down => fdf_controller.camera.move(.down),
+            .move_forward => fdf_controller.camera.move(.forward),
+            .move_backward => fdf_controller.camera.move(.backward),
+            .quit => fdf_controller.deinitAndDie(),
+            else => return (0),
+        }
+    }
+
     pub fn startRendering(self: *FdfController) !void {
         while (true) {
             if (self.is_dirty) {
@@ -178,16 +195,42 @@ pub const FdfController = struct {
             }
             if (try self.renderer.render()) |rendered| {
                 var y: usize = 0;
-                while (y < self.height) : (y += 1) {
+                while (y < self.height - 1) : (y += 1) {
                     var x: usize = 0;
-                    while (x < self.width) : (x += 1) {
-                        const pixel = rendered[y][x];
-                        self.mlx.putPixelImage(pixel.x, pixel.y, 0x00FFFFFF);
+                    while (x < self.width - 1) : (x += 1) {
+                        self.drawLine(rendered[y + 1][x], rendered[y][x]);
+                        self.drawLine(rendered[y][x + 1], rendered[y][x]);
                     }
                 }
                 self.is_dirty = true;
                 _ = self.mlx.putImageToWindow(0, 0);
                 _ = self.mlx.doSync();
+            }
+        }
+    }
+
+    pub fn drawLine(self: *FdfController, start: Pixel, end: Pixel) void {
+        var x0 = start.x;
+        var y0 = start.y;
+        const x1 = end.x;
+        const y1 = end.y;
+        const dx: u32 = @abs(x1 - x0);
+        const dy: u32 = @abs(y1 - y0);
+        const sx: i32 = if (x0 < x1) 1 else -1;
+        const sy: i32 = if (y0 < y1) 1 else -1;
+        var err = dx + dy;
+        while (x0 != x1 and y0 != y1) {
+            self.mlx.putPixelImage(x0, y0, 0x00FFFFFF);
+            const e2 = 2 * err;
+            if (e2 >= dy) {
+                if (x0 == x1) break;
+                err += dy;
+                x0 += sx;
+            }
+            if (e2 <= dx) {
+                if (y0 == y1) break;
+                err += dx;
+                y0 += sy;
             }
         }
     }
@@ -198,5 +241,14 @@ pub const FdfController = struct {
         self.map_input.deinit();
         self.mlx.deinit();
         allocator.destroy(self);
+    }
+
+    pub fn deinitAndDie(self: *FdfController) void {
+        const allocator = self.allocator;
+        self.renderer.deinit();
+        self.map_input.deinit();
+        self.mlx.deinit();
+        allocator.destroy(self);
+        std.process.exit(0);
     }
 };

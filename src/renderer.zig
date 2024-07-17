@@ -126,8 +126,8 @@ pub const Renderer = struct {
                 const translated_point = zoomed_point.add(parameters.translation);
                 const rotated_point = translated_point.rotXYZ(parameters.cos_rotates, parameters.sin_rotates);
                 const projected_pixel = Pixel{
-                    .x = @intFromFloat(@floor((rotated_point.x - rotated_point.y) * COS30)),
-                    .y = @intFromFloat(@floor(((-rotated_point.z) + (rotated_point.x + rotated_point.y) * SIN30))),
+                    .x = @intFromFloat((rotated_point.x - rotated_point.y) * COS30),
+                    .y = @intFromFloat(((-rotated_point.z) + (rotated_point.x + rotated_point.y) * SIN30)),
                     .color = self.color[y][x].color,
                 };
                 pixel_buffer.appendAssumeCapacity(projected_pixel);

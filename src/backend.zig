@@ -297,7 +297,7 @@ pub const MlxBackend = struct {
         if ((x >= 0 and x < self.*.width) and (y >= 0 and y < self.*.height)) {
             const fx: usize = @intCast(x);
             const fy: usize = @intCast(y);
-            buffer[fx + (fy * self.dheight)] = color;
+            buffer[fx + (fy * self.dwidth)] = color;
         }
     }
 
