@@ -20,9 +20,9 @@ pub fn build(b: *std.Build) !void {
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
-    run_cmd.addArg("./map/France.XXL.fdf");
-    run_cmd.addArg("1280");
-    run_cmd.addArg("720");
+    run_cmd.addArg("./map/elem-fract-no-color.fdf");
+    run_cmd.addArg("800");
+    run_cmd.addArg("600");
     run_cmd.addArg("0x000000FF");
 
     if (b.args) |args| {

@@ -12,7 +12,7 @@ pub const c_source_files = &[_][]const u8{
 };
 
 pub const c_release_flags = &[_][]const u8{
-    "-O3",
+    "-Ofast",
 };
 pub const source_dir = "src/source/";
 

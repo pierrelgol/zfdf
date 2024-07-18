@@ -176,13 +176,15 @@ pub const Controller = struct {
     scal_step: f32,
     allocator: Allocator,
     arena: ArenaAllocator,
+    screen_height: usize,
+    screen_width: usize,
     map_data: *MapData,
     mlx: *MlxBackend,
     camera: Camera,
     renderer_config: RendererConfig,
     renderer: Renderer,
     event: ControllerCommand,
-    timer : std.time.Timer,
+    timer: std.time.Timer,
     time_start: i128,
     time_end: i128,
 
@@ -199,11 +201,13 @@ pub const Controller = struct {
         const map_center_x: f32 = @as(f32, @floatFromInt(map_data.world_width)) / @as(f32, 2.0);
         const map_center_y: f32 = @as(f32, @floatFromInt(map_data.world_height)) / @as(f32, 2.0);
 
+        self.screen_height = @intCast(screen_height);
+        self.screen_width = @intCast(screen_width);
         self.*.allocator = allocator;
         self.*.mlx = try MlxBackend.init(allocator, screen_width, screen_height, name);
         self.*.map_data = map_data;
         self.*.camera = Camera.init(.{ .x = (screen_center_x - map_center_x), .y = -(screen_center_y - map_center_y), .z = 1 }, .{ .x = 0, .y = 0, .z = 0 }, 1, 0.01);
-        self.*.renderer_config = RendererConfig.init(map_data, &self.camera);
+        self.*.renderer_config = RendererConfig.init(map_data, &self.camera, config.screen_width, config.screen_height);
         self.event = .default;
         self.*.renderer = Renderer.init(self.arena.allocator(), self.*.mlx, &self.*.renderer_config);
         self.move_step = 30.0;
@@ -215,7 +219,7 @@ pub const Controller = struct {
 
     pub fn renderingLoopBegin(controller: *Controller) void {
         const opaque_handle: ?*anyopaque = @alignCast(@ptrCast(controller));
-        controller.renderer_config = RendererConfig.init(controller.map_data, &controller.camera);
+        controller.renderer_config = RendererConfig.init(controller.map_data, &controller.camera, controller.screen_width, controller.screen_height);
         controller.renderer.render();
         controller.renderer.draw();
         _ = controller.arena.reset(.retain_capacity);
@@ -227,7 +231,7 @@ pub const Controller = struct {
 
     pub fn renderingLoopLiveBegin(controller: *Controller) void {
         const opaque_handle: ?*anyopaque = @alignCast(@ptrCast(controller));
-        controller.renderer_config = RendererConfig.init(controller.map_data, &controller.camera);
+        controller.renderer_config = RendererConfig.init(controller.map_data, &controller.camera, controller.screen_width, controller.screen_height);
         _ = controller.arena.reset(.retain_capacity);
         controller.renderer.reset(&controller.renderer_config);
         _ = controller.mlx.genericHookOne(@as(i32, 17), @as(i32, 9), OnEventQuit, opaque_handle);
@@ -240,14 +244,14 @@ pub const Controller = struct {
         const maybe_controller = @as(?*Controller, @alignCast(@ptrCast(argument)));
         const controller = maybe_controller orelse return (0);
         controller.time_start = std.time.nanoTimestamp();
-        controller.renderer_config = RendererConfig.init(controller.map_data, &controller.camera);
+        controller.renderer_config = RendererConfig.init(controller.map_data, &controller.camera, controller.screen_width, controller.screen_height);
         _ = controller.arena.reset(.retain_capacity);
         controller.renderer.reset(&controller.renderer_config);
         controller.renderer.render();
         controller.renderer.draw();
+        controller.time_end = std.time.nanoTimestamp();
         _ = controller.mlx.putImageToWindow(0, 0);
         _ = controller.mlx.doSync();
-        controller.time_end = std.time.nanoTimestamp();
         const delta_time_ns = controller.time_end - controller.time_start;
         const delta_time_s = @as(f32, @floatFromInt(delta_time_ns)) / std.time.ns_per_s;
         const fps = 1 / delta_time_s;
