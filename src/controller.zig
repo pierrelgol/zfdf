@@ -133,6 +133,41 @@ pub fn OnEvenKeyPressed(keycode: i32, argument: ?*anyopaque) callconv(.C) c_int 
     return (0);
 }
 
+pub fn OnEvenKeyPressedLive(keycode: i32, argument: ?*anyopaque) callconv(.C) c_int {
+    const maybe_controller = @as(?*Controller, @alignCast(@ptrCast(argument)));
+    const controller = maybe_controller orelse return (0);
+    std.log.info("keypressed : {d}", .{keycode});
+    controller.event = ControllerCommand.enumFromI32(keycode);
+
+    switch (controller.event) {
+        .camera_move_left => controller.camera.move(.move_left, controller.move_step + controller.camera.zoom_lvl),
+        .camera_move_right => controller.camera.move(.move_right, controller.move_step + controller.camera.zoom_lvl),
+        .camera_move_up => controller.camera.move(.move_up, controller.move_step + controller.camera.zoom_lvl),
+        .camera_move_down => controller.camera.move(.move_down, controller.move_step + controller.camera.zoom_lvl),
+        .camera_move_forward => controller.camera.move(.move_forward, controller.move_step + controller.camera.zoom_lvl),
+        .camera_move_backward => controller.camera.move(.move_backward, controller.move_step + controller.camera.zoom_lvl),
+
+        .camera_pitch_up => controller.camera.rotate(.pitch_up, controller.rota_step + controller.camera.zoom_lvl),
+        .camera_pitch_down => controller.camera.rotate(.pitch_down, controller.rota_step + controller.camera.zoom_lvl),
+        .camera_roll_left => controller.camera.rotate(.roll_left, controller.rota_step + controller.camera.zoom_lvl),
+        .camera_roll_right => controller.camera.rotate(.roll_right, controller.rota_step + controller.camera.zoom_lvl),
+        .camera_yaw_left => controller.camera.rotate(.yaw_left, controller.rota_step + controller.camera.zoom_lvl),
+        .camera_yaw_right => controller.camera.rotate(.yaw_right, controller.rota_step + controller.camera.zoom_lvl),
+
+        .camera_zoom_in => controller.camera.zoom(.zoom_in, controller.zoom_step),
+        .camera_zoom_out => controller.camera.zoom(.zoom_out, controller.zoom_step),
+
+        .camera_scale_in => controller.camera.scale(.scale_in, controller.scal_step),
+        .camera_scale_out => controller.camera.scale(.scale_out, controller.scal_step),
+        .camera_reset => controller.camera.reset(),
+        .controller_quit => {
+            return OnEventQuit(argument);
+        },
+        else => return (0),
+    }
+    return (0);
+}
+
 pub const Controller = struct {
     const name: []const u8 = "fdf";
     move_step: f32,
@@ -147,6 +182,9 @@ pub const Controller = struct {
     renderer_config: RendererConfig,
     renderer: Renderer,
     event: ControllerCommand,
+    timer : std.time.Timer,
+    time_start: i128,
+    time_end: i128,
 
     pub fn init(allocator: Allocator, config: Config, map_data: *MapData) !*Controller {
         var self: *Controller = try allocator.create(Controller);
@@ -185,6 +223,41 @@ pub const Controller = struct {
         _ = controller.mlx.genericHookOne(@as(i32, 17), @as(i32, 9), OnEventQuit, opaque_handle);
         _ = controller.mlx.keyHookTwo(OnEvenKeyPressed, opaque_handle);
         _ = controller.mlx.loopStart();
+    }
+
+    pub fn renderingLoopLiveBegin(controller: *Controller) void {
+        const opaque_handle: ?*anyopaque = @alignCast(@ptrCast(controller));
+        controller.renderer_config = RendererConfig.init(controller.map_data, &controller.camera);
+        _ = controller.arena.reset(.retain_capacity);
+        controller.renderer.reset(&controller.renderer_config);
+        _ = controller.mlx.genericHookOne(@as(i32, 17), @as(i32, 9), OnEventQuit, opaque_handle);
+        _ = controller.mlx.keyHookTwo(OnEvenKeyPressedLive, opaque_handle);
+        _ = controller.mlx.loopHookOne(renderingLoopLive, opaque_handle);
+        _ = controller.mlx.loopStart();
+    }
+
+    pub fn renderingLoopLive(argument: ?*anyopaque) callconv(.C) c_int {
+        const maybe_controller = @as(?*Controller, @alignCast(@ptrCast(argument)));
+        const controller = maybe_controller orelse return (0);
+        controller.time_start = std.time.nanoTimestamp();
+        controller.renderer_config = RendererConfig.init(controller.map_data, &controller.camera);
+        _ = controller.arena.reset(.retain_capacity);
+        controller.renderer.reset(&controller.renderer_config);
+        controller.renderer.render();
+        controller.renderer.draw();
+        _ = controller.mlx.putImageToWindow(0, 0);
+        _ = controller.mlx.doSync();
+        controller.time_end = std.time.nanoTimestamp();
+        const delta_time_ns = controller.time_end - controller.time_start;
+        const delta_time_s = @as(f32, @floatFromInt(delta_time_ns)) / std.time.ns_per_s;
+        const fps = 1 / delta_time_s;
+        std.debug.print("curr fps = {d}\n", .{fps});
+        var fps_str_buf: [64:0]u8 = undefined;
+        if (std.fmt.bufPrintZ(&fps_str_buf, "{d}", .{fps})) |result| {
+            const fps_str: [*:0]u8 = result[0.. :0].ptr;
+            _ = controller.mlx.stringPut(fps_str, 930, 20);
+        } else |_| {}
+        return (0);
     }
 
     pub fn deinit(controller: *Controller) void {

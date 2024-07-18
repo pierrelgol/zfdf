@@ -142,8 +142,6 @@ pub const Renderer = struct {
                     renderer.drawLine(renderer.rendered.items[(y) * width + (x)], renderer.rendered.items[(y + 1) * width + (x)]);
             }
         }
-        _ = renderer.mlx_backend.putImageToWindow(0, 0);
-        _ = renderer.mlx_backend.doSync();
     }
 
     pub inline fn drawPixel(renderer: *const Renderer, pixel: Pixel) void {

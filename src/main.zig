@@ -80,5 +80,6 @@ pub fn main() !void {
         std.process.exit(1);
     }
     defer controller.deinit();
-    controller.renderingLoopBegin();
+    // controller.renderingLoopBegin();
+    controller.renderingLoopLiveBegin();
 }
