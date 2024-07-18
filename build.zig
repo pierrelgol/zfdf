@@ -11,7 +11,7 @@ pub fn build(b: *std.Build) !void {
         .name = "zfdf",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
-        .optimize = optimize,
+        .optimize = .ReleaseFast,
         .link_libc = true,
     });
     exe.installHeadersDirectory(upstream.path("minilibx/src/include/"), "", .{});
@@ -20,6 +20,10 @@ pub fn build(b: *std.Build) !void {
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
+    run_cmd.addArg("./map/USGS_ULCN2005_grid.txt_OCEAN1_L.fdf");
+    run_cmd.addArg("1280");
+    run_cmd.addArg("720");
+    run_cmd.addArg("0x00FF0000");
 
     if (b.args) |args| {
         run_cmd.addArgs(args);

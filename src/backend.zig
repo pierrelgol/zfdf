@@ -41,7 +41,7 @@ pub const MlxBackend = struct {
         self.width = width;
         self.height = height;
         self.dwidth = (@intCast(width));
-        self.dheight= (@intCast(height));
+        self.dheight = (@intCast(height));
         return (self);
     }
 
@@ -94,13 +94,14 @@ pub const MlxBackend = struct {
         return (false);
     }
 
-    pub fn clearImageBuffer(self: *MlxBackend, color: i32) bool {
-        const buffer = self.*.img_buffer orelse return (false);
-        const slice = std.mem.sliceTo(buffer, 0);
-        for (slice) |*item| {
-            item.* = color;
+    pub fn clearImageBuffer(self: *MlxBackend) void {
+        const height :usize = @intCast(self.height);
+        const width :usize = @intCast(self.width);
+        for (0..height) |h| {
+            for (0..width) |w| {
+                putPixelImage(self, @as(i32, @intCast(w)), @as(i32, @intCast(h)), 0x00_00_00_00);
+            }
         }
-        return (true);
     }
 
     pub fn destroyDisplay(self: *MlxBackend) bool {
@@ -127,7 +128,6 @@ pub const MlxBackend = struct {
         }
         return (false);
     }
-
 
     pub fn keyAutorepeatOn(self: *MlxBackend) bool {
         if (self.*.mlx_ptr) |_| {

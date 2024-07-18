@@ -5,305 +5,204 @@
 //                                                    +:+ +:+         +:+     //
 //   By: pollivie <pollivie.student.42.fr>          +#+  +:+       +#+        //
 //                                                +#+#+#+#+#+   +#+           //
-//   Created: 2024/07/17 12:49:33 by pollivie          #+#    #+#             //
-//   Updated: 2024/07/17 12:49:33 by pollivie         ###   ########.fr       //
+//   Created: 2024/07/18 12:31:32 by pollivie          #+#    #+#             //
+//   Updated: 2024/07/18 12:31:33 by pollivie         ###   ########.fr       //
 //                                                                            //
 // ************************************************************************** //
 
 const std = @import("std");
+const fdf_type = @import("type.zig");
+const mapdata = @import("map_data.zig");
+const cam = @import("camera.zig");
 const backend = @import("backend.zig");
-const ctype = @import("type.zig");
-const map = @import("map.zig");
 const rend = @import("renderer.zig");
+const fdf_config = @import("parsing.zig");
 const MlxBackend = backend.MlxBackend;
+const MapDataError = mapdata.MapDataError;
+const MapData = mapdata.MapData;
 const ArrayList = std.ArrayList;
+const AllocatorError = Allocator.Error;
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
-const MapError = map.MapError;
-const Map = map.Map;
-const Pixel = ctype.Pixel;
-const Color = ctype.Color;
-const Vec3 = ctype.Vec3;
-const RenderingParameters = rend.RenderingParameters;
+const Vec3 = fdf_type.Vec3;
+const Color = fdf_type.Color;
+const Pixel = fdf_type.Pixel;
+const Camera = cam.Camera;
+const CameraControl = cam.CameraControl;
+const RendererConfig = rend.RendererConfig;
 const Renderer = rend.Renderer;
-const DEG2RAD = std.math.deg_per_rad;
+const Config = fdf_config.Config;
 
-pub const Camera = struct {
-    position: Vec3,
-    rotation: Vec3,
-    zoom: f32,
-    move_step: f32,
-    rotate_step: f32,
+pub const ControllerCommand = enum(i32) {
+    default = 0,
 
-    pub const Move = enum {
-        forward,
-        backward,
-        left,
-        right,
-        up,
-        down,
-    };
+    camera_move_left = 97,
+    camera_move_right = 100,
+    camera_move_up = 119,
+    camera_move_down = 115,
+    camera_move_forward = 116,
+    camera_move_backward = 103,
 
-    pub const Rotate = enum {
-        pitch_up,
-        pitch_down,
-        roll_left,
-        roll_right,
-        yaw_more,
-        yaw_less,
-    };
+    camera_pitch_up = 121,
+    camera_pitch_down = 104,
+    camera_yaw_left = 117,
+    camera_yaw_right = 106,
+    camera_roll_left = 111,
+    camera_roll_right = 108,
 
-    pub fn init(move_step: f32, rotate_step: f32) Camera {
-        return Camera{
-            .position = Vec3.init(0, 0, 0),
-            .rotation = Vec3.init(0, 0, 0),
-            .zoom = 1.0,
-            .move_step = move_step,
-            .rotate_step = rotate_step,
-        };
-    }
+    camera_zoom_in = 61,
+    camera_zoom_out = 45,
 
-    pub fn move(self: *Camera, action: Move) void {
-        const step = self.move_step;
-        const offset_vec = switch (action) {
-            .left => Vec3{ .x = -step, .y = 0, .z = 0 },
-            .right => Vec3{ .x = step, .y = 0, .z = 0 },
-            .up => Vec3{ .x = 0, .y = -step, .z = 0 },
-            .down => Vec3{ .x = 0, .y = step, .z = 0 },
-            .forward => Vec3{ .x = 0, .y = 0, .z = -step },
-            .backward => Vec3{ .x = 0, .y = 0, .z = step },
-        };
-        self.position = self.position.add(offset_vec);
-    }
+    camera_scale_in = 91,
+    camera_scale_out = 93,
 
-    pub fn rotate(self: *Camera, action: Rotate) void {
-        const step = self.rotate_step;
-        const offset_vec = switch (action) {
-            .pitch_up => Vec3{ .x = -step, .y = 0, .z = 0 },
-            .pitch_down => Vec3{ .x = step, .y = 0, .z = 0 },
-            .roll_left => Vec3{ .x = 0, .y = -step, .z = 0 },
-            .roll_right => Vec3{ .x = 0, .y = step, .z = 0 },
-            .yaw_more => Vec3{ .x = 0, .y = 0, .z = -step },
-            .yaw_less => Vec3{ .x = 0, .y = 0, .z = step },
-        };
-        self.rotation = self.rotation.add(offset_vec);
-    }
+    camera_reset = 114,
 
-    pub fn fillRenderingParameters(self: *Camera, out_parameters: *RenderingParameters) void {
-        out_parameters.translation = self.position;
-        out_parameters.cos_rotates = Vec3{
-            .x = @cos(self.rotation.x * DEG2RAD),
-            .y = @cos(self.rotation.y * DEG2RAD),
-            .z = @cos(self.rotation.z * DEG2RAD),
-        };
-        out_parameters.sin_rotates = Vec3{
-            .x = @sin(self.rotation.x * DEG2RAD),
-            .y = @sin(self.rotation.y * DEG2RAD),
-            .z = @sin(self.rotation.z * DEG2RAD),
-        };
-        out_parameters.zoom_level = self.zoom;
-    }
-};
+    controller_quit = 65307,
 
-pub const CommandCode = enum(u32) {
-    ignore = 0,
-    move_left = 65361,
-    move_right = 65363,
-    move_up = 65362,
-    move_down = 65364,
-    move_forward = 119,
-    move_backward = 115,
-    rota_pitch_more = 97,
-    rota_pitch_less = 100,
-    rota_roll_more = 112,
-    rota_roll_less = 101,
-    rota_yaw_more = 777,
-    rota_yaw_less = 776,
-    zoom_more = 61,
-    zoom_less = 45,
-    scale_more = 999,
-    scale_less = 998,
-    reset_state = 997,
-    change_projection = 888,
-    quit = 65307,
-
-    pub fn toEnum(keycode: i32) CommandCode {
+    pub fn enumFromI32(keycode: i32) ControllerCommand {
         return switch (keycode) {
-            0 => return .ignore,
-            65361 => return .move_left,
-            65363 => return .move_right,
-            65362 => return .move_up,
-            65364 => return .move_down,
-            119 => return .move_forward,
-            115 => return .move_backward,
-            97 => return .rota_pitch_more,
-            100 => return .rota_pitch_less,
-            112 => return .rota_roll_more,
-            101 => return .rota_roll_less,
-            777 => return .rota_yaw_more,
-            776 => return .rota_yaw_less,
-            61 => return .zoom_more,
-            45 => return .zoom_less,
-            999 => return .scale_more,
-            998 => return .scale_less,
-            997 => return .reset_state,
-            888 => return .change_projection,
-            65307 => return .quit,
-            else => .ignore,
+            0 => ControllerCommand.default,
+            97 => ControllerCommand.camera_move_left,
+            100 => ControllerCommand.camera_move_right,
+            119 => ControllerCommand.camera_move_up,
+            115 => ControllerCommand.camera_move_down,
+            116 => ControllerCommand.camera_move_forward,
+            103 => ControllerCommand.camera_move_backward,
+            121 => ControllerCommand.camera_pitch_up,
+            104 => ControllerCommand.camera_pitch_down,
+            117 => ControllerCommand.camera_yaw_left,
+            106 => ControllerCommand.camera_yaw_right,
+            111 => ControllerCommand.camera_roll_left,
+            108 => ControllerCommand.camera_roll_right,
+            61 => ControllerCommand.camera_zoom_in,
+            45 => ControllerCommand.camera_zoom_out,
+            91 => ControllerCommand.camera_scale_in,
+            93 => ControllerCommand.camera_scale_out,
+            114 => ControllerCommand.camera_reset,
+            65307 => ControllerCommand.controller_quit,
+            else => ControllerCommand.default,
         };
     }
 };
 
-pub const FdfController = struct {
-    const name: []const u8 = "fdf";
-    allocator: Allocator,
-    camera: Camera,
-    height: i32,
-    width: i32,
-    input: CommandCode,
-    map_input: *Map,
-    mlx: *MlxBackend,
-    rendering_parameters: RenderingParameters,
-    rendered_buffer: ?[][]Pixel,
-    renderer: *Renderer,
-    is_dirty: bool,
+pub fn OnEventQuit(argument: ?*anyopaque) callconv(.C) c_int {
+    const maybe_controller = @as(?*Controller, @alignCast(@ptrCast(argument)));
+    const controller = maybe_controller orelse return (0);
+    _ = controller.mlx.loopEnd();
+    return (0);
+}
 
-    pub fn init(allocator: Allocator, map_data: []const u8, width: i32, height: i32) (Allocator.Error || MapError)!*FdfController {
-        const self = try allocator.create(FdfController);
+pub fn OnEvenKeyPressed(keycode: i32, argument: ?*anyopaque) callconv(.C) c_int {
+    const maybe_controller = @as(?*Controller, @alignCast(@ptrCast(argument)));
+    const controller = maybe_controller orelse return (0);
+    std.log.info("keypressed : {d}", .{keycode});
+    controller.event = ControllerCommand.enumFromI32(keycode);
+
+    switch (controller.event) {
+        .camera_move_left => controller.camera.move(.move_left, controller.move_step + controller.camera.zoom_lvl),
+        .camera_move_right => controller.camera.move(.move_right, controller.move_step + controller.camera.zoom_lvl),
+        .camera_move_up => controller.camera.move(.move_up, controller.move_step + controller.camera.zoom_lvl),
+        .camera_move_down => controller.camera.move(.move_down, controller.move_step + controller.camera.zoom_lvl),
+        .camera_move_forward => controller.camera.move(.move_forward, controller.move_step + controller.camera.zoom_lvl),
+        .camera_move_backward => controller.camera.move(.move_backward, controller.move_step + controller.camera.zoom_lvl),
+
+        .camera_pitch_up => controller.camera.rotate(.pitch_up, controller.rota_step + controller.camera.zoom_lvl),
+        .camera_pitch_down => controller.camera.rotate(.pitch_down, controller.rota_step + controller.camera.zoom_lvl),
+        .camera_roll_left => controller.camera.rotate(.roll_left, controller.rota_step + controller.camera.zoom_lvl),
+        .camera_roll_right => controller.camera.rotate(.roll_right, controller.rota_step + controller.camera.zoom_lvl),
+        .camera_yaw_left => controller.camera.rotate(.yaw_left, controller.rota_step + controller.camera.zoom_lvl),
+        .camera_yaw_right => controller.camera.rotate(.yaw_right, controller.rota_step + controller.camera.zoom_lvl),
+
+        .camera_zoom_in => controller.camera.zoom(.zoom_in, controller.zoom_step),
+        .camera_zoom_out => controller.camera.zoom(.zoom_out, controller.zoom_step),
+
+        .camera_scale_in => controller.camera.scale(.scale_in, controller.scal_step),
+        .camera_scale_out => controller.camera.scale(.scale_out, controller.scal_step),
+        .camera_reset => controller.camera.reset(),
+        .controller_quit => {
+            return OnEventQuit(argument);
+        },
+        else => return (0),
+    }
+    controller.renderer_config = RendererConfig.init(controller.map_data, &controller.camera);
+    controller.renderer.render();
+    controller.renderer.draw();
+    _ = controller.arena.reset(.retain_capacity);
+    controller.renderer.reset(&controller.renderer_config);
+    return (0);
+}
+
+pub const Controller = struct {
+    const name: []const u8 = "fdf";
+    move_step: f32,
+    rota_step: f32,
+    zoom_step: f32,
+    scal_step: f32,
+    allocator: Allocator,
+    arena: ArenaAllocator,
+    map_data: *MapData,
+    mlx: *MlxBackend,
+    camera: Camera,
+    renderer_config: RendererConfig,
+    renderer: Renderer,
+    event: ControllerCommand,
+
+    pub fn init(allocator: Allocator, config: Config, map_data: *MapData) !*Controller {
+        var self: *Controller = try allocator.create(Controller);
+        errdefer allocator.destroy(self);
+
+        self.*.arena = ArenaAllocator.init(allocator);
+        errdefer self.*.arena.deinit();
+        const screen_width: i32 = @intCast(@as(usize, config.screen_width));
+        const screen_height: i32 = @intCast(@as(usize, config.screen_height));
+        const screen_center_x: f32 = @as(f32, @floatFromInt(screen_width)) / @as(f32, 2.0);
+        const screen_center_y: f32 = @as(f32, @floatFromInt(screen_height)) / @as(f32, 2.0);
+        const map_center_x: f32 = @as(f32, @floatFromInt(map_data.world_width)) / @as(f32, 2.0);
+        const map_center_y: f32 = @as(f32, @floatFromInt(map_data.world_height)) / @as(f32, 2.0);
+
         self.*.allocator = allocator;
-        self.*.height = height;
-        self.*.width = width;
-        self.*.camera = Camera.init(10.0, 1.0);
-        self.*.rendering_parameters = RenderingParameters{
-            .screen_width = 0,
-            .screen_height = 0,
-            .screen_center = Vec3.init(400, 300, 1),
-            .translation = Vec3.init(0, 0, 0),
-            .sin_rotates = Vec3.init(30, 20, 0),
-            .cos_rotates = Vec3.init(30, 20, 0),
-            .zoom_level = 1.5,
-        };
-        self.*.camera.fillRenderingParameters(&self.rendering_parameters);
-        self.*.map_input = try Map.initWithCapacity(allocator, height, width);
-        try Map.parse(self.map_input, map_data);
-        self.*.renderer = try Renderer.init(allocator, self.map_input, self.rendering_parameters);
-        self.*.mlx = try MlxBackend.init(allocator, 1920, 1080, name);
-        self.is_dirty = false;
+        self.*.mlx = try MlxBackend.init(allocator, screen_width, screen_height, name);
+        self.*.map_data = map_data;
+        self.*.camera = Camera.init(.{ .x = (screen_center_x - map_center_x), .y = -(screen_center_y - map_center_y), .z = 1 }, .{ .x = 0, .y = 0, .z = 0 }, 1, 0.01);
+        self.*.renderer_config = RendererConfig.init(map_data, &self.camera);
+        self.event = .default;
+        self.*.renderer = Renderer.init(self.arena.allocator(), self.*.mlx, &self.*.renderer_config);
+        self.move_step = 30.0;
+        self.rota_step = 2.0;
+        self.zoom_step = 0.5;
+        self.scal_step = 0.1;
         return (self);
     }
 
-    pub fn fdfKeyHandler(keycode: i32, arg: ?*anyopaque) callconv(.C) c_int {
-        const maybe_fdf_controller = @as(?*FdfController, @alignCast(@ptrCast(arg)));
-        const fdf_controller = maybe_fdf_controller orelse return (0);
-        const action = CommandCode.toEnum(keycode);
-        switch (action) {
-            .ignore => return (0),
-            .move_left => fdf_controller.camera.move(.left),
-            .move_right => fdf_controller.camera.move(.right),
-            .move_up => fdf_controller.camera.move(.up),
-            .move_down => fdf_controller.camera.move(.down),
-            .move_forward => fdf_controller.camera.move(.forward),
-            .move_backward => fdf_controller.camera.move(.backward),
-            .zoom_more => fdf_controller.camera.zoom += 1,
-            .zoom_less => fdf_controller.camera.zoom -= 1,
-            .rota_pitch_more => fdf_controller.camera.rotate(.pitch_up),
-            .rota_pitch_less => fdf_controller.camera.rotate(.pitch_down),
-            .rota_roll_more => fdf_controller.camera.rotate(.roll_left),
-            .rota_roll_less => fdf_controller.camera.rotate(.roll_right),
-            .rota_yaw_more => fdf_controller.camera.rotate(.yaw_more),
-            .rota_yaw_less => fdf_controller.camera.rotate(.yaw_less),
-            .quit => fdf_controller.deinitAndDie(),
-            else => return (0),
-        }
-        fdf_controller.draw();
-        return (0);
+    pub fn renderingLoopBegin(controller: *Controller) void {
+        const opaque_handle: ?*anyopaque = @alignCast(@ptrCast(controller));
+        controller.renderer_config = RendererConfig.init(controller.map_data, &controller.camera);
+        controller.renderer.render();
+        controller.renderer.draw();
+        _ = controller.arena.reset(.retain_capacity);
+        controller.renderer.reset(&controller.renderer_config);
+        _ = controller.mlx.genericHookOne(@as(i32, 17), @as(i32, 9), OnEventQuit, opaque_handle);
+        _ = controller.mlx.keyHookTwo(OnEvenKeyPressed, opaque_handle);
+        _ = controller.mlx.loopStart();
     }
 
-    pub fn on_program_quit(arg: ?*anyopaque) callconv(.C) c_int {
-        const maybe_fdf_controller = @as(?*FdfController, @alignCast(@ptrCast(arg)));
-        const fdf_controller = maybe_fdf_controller orelse return (0);
-        fdf_controller.deinitAndDie();
-        return (0);
+    pub fn deinit(controller: *Controller) void {
+        const allocator = controller.allocator;
+        _ = controller.arena.reset(.free_all);
+        controller.arena.deinit();
+        controller.*.mlx.deinit();
+        allocator.destroy(controller);
     }
 
-    pub fn startRendering(self: *FdfController) !void {
-        _ = self.mlx.genericHookOne(17, 9, on_program_quit, @alignCast(@ptrCast(self)));
-        _ = self.mlx.keyHookTwo(fdfKeyHandler, @alignCast(@ptrCast(self)));
-        _ = self.mlx.loopStart();
-    }
-
-    pub fn clear(self: *FdfController) void {
-        var height: i32 = 0;
-        while (height < self.mlx.height) : (height += 1) {
-            var width: i32 = 0;
-            while (width < self.mlx.width) : (width += 1) {
-                self.mlx.putPixelImage(height, width, 0x00_00_00_00);
-            }
-        }
-        self.renderer.reset() catch unreachable;
-        self.is_dirty = false;
-    }
-
-    pub fn draw(self: *FdfController) void {
-        self.clear();
-        self.camera.fillRenderingParameters(&self.renderer.parameters);
-        const maybe_rendered = self.renderer.render() catch unreachable;
-        const rendered = maybe_rendered orelse unreachable;
-        var height: usize = 0;
-        while (height < self.height - 1) : (height += 1) {
-            var width: usize = 0;
-            while (width < self.width - 1) : (width += 1) {
-                if (height + 1 < self.height and height + 1 < self.mlx.dheight)
-                    self.drawLine(rendered[height][width], rendered[height + 1][width]);
-                if (width + 1 < self.width and width + 1 < self.mlx.dwidth)
-                    self.drawLine(rendered[height][width], rendered[height][width + 1]);
-            }
-        }
-        self.is_dirty = true;
-        _ = self.mlx.putImageToWindow(0, 0);
-        _ = self.mlx.doSync();
-    }
-
-    pub fn drawLine(self: *FdfController, start: Pixel, end: Pixel) void {
-        var x0 = start.x;
-        var y0 = start.y;
-        const x1 = end.x;
-        const y1 = end.y;
-        const dx: u32 = @abs(x1 - x0);
-        const dy: u32 = @abs(y1 - y0);
-        const sx: i32 = if (x0 < x1) 1 else -1;
-        const sy: i32 = if (y0 < y1) 1 else -1;
-        var err = dx + dy;
-        while (x0 != x1 and y0 != y1) {
-            self.mlx.putPixelImage(x0, y0, 0x00FFFFFF);
-            const e2 = 2 * err;
-            if (e2 >= dy) {
-                if (x0 == x1) break;
-                err += dy;
-                x0 += sx;
-            }
-            if (e2 <= dx) {
-                if (y0 == y1) break;
-                err += dx;
-                y0 += sy;
-            }
-        }
-    }
-
-    pub fn deinit(self: *FdfController) void {
-        const allocator = self.allocator;
-        self.renderer.deinit();
-        self.map_input.deinit();
-        self.mlx.deinit();
-        allocator.destroy(self);
-    }
-
-    pub fn deinitAndDie(self: *FdfController) void {
-        const allocator = self.allocator;
-        self.renderer.deinit();
-        self.map_input.deinit();
-        self.mlx.deinit();
-        allocator.destroy(self);
-        std.process.exit(0);
+    pub fn debug_log(controller: *Controller) void {
+        std.log.debug("CONTROLLER", .{});
+        std.log.debug("allocator = {*}", .{&controller.allocator});
+        std.log.debug("arena = {*}", .{&controller.arena});
+        std.log.debug("mlx {*}", .{controller.mlx});
+        controller.map_data.debug_log();
+        controller.camera.debug_log();
+        controller.renderer_config.debug_log();
+        controller.renderer.debug_log();
     }
 };
