@@ -105,7 +105,12 @@ pub const Camera = struct {
         if ((camera.zoom_lvl + zoom_offset) >= 100.0)
             return;
         if ((camera.zoom_lvl + zoom_offset) <= 1.0)
+        {
+            if ((camera.zoom_lvl - 0.1) <= 0.0)
+                return;
+            camera.*.zoom_lvl -= 0.01;
             return;
+        }
         camera.*.zoom_lvl += zoom_offset;
         // camera.debug_log();
     }
