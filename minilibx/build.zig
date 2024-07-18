@@ -11,10 +11,6 @@ pub const c_source_files = &[_][]const u8{
     "mlx_mouse.c",                  "mlx_screen_size.c",         "mlx_destroy_display.c",
 };
 
-pub const c_debug_flags = &[_][]const u8{
-    "-fno-omit-frame-pointer",
-    "-g3",
-};
 pub const c_release_flags = &[_][]const u8{
     "-O3",
 };
@@ -51,10 +47,7 @@ pub const source_dir = "src/source/";
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const c_source_flags = switch (optimize) {
-        .Debug => c_debug_flags,
-        else => c_release_flags,
-    };
+    const c_source_flags = c_release_flags;
 
     // const lib = b.addStaticLibrary(.{
     //     .name = "minilibx",

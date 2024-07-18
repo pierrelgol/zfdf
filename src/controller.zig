@@ -169,7 +169,7 @@ pub const Controller = struct {
         self.event = .default;
         self.*.renderer = Renderer.init(self.arena.allocator(), self.*.mlx, &self.*.renderer_config);
         self.move_step = 30.0;
-        self.rota_step = 2.0;
+        self.rota_step = 10.0;
         self.zoom_step = 0.5;
         self.scal_step = 0.1;
         return (self);

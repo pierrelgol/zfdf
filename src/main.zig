@@ -23,9 +23,14 @@ const AllocatorError = std.mem.Allocator.Error;
 const Allocator = std.mem.Allocator;
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+    // var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    // defer _ = gpa.deinit();
+    // const allocator = gpa.allocator();
+    const page_allocator= std.heap.page_allocator;
+    var arena = std.heap.ArenaAllocator.init(page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
 
     var config = Config.init(allocator);
     defer config.deinit();
