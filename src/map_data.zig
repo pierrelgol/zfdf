@@ -91,10 +91,10 @@ pub const MapData = struct {
                 }
 
                 if (values_iterator.next()) |color_str| {
-                    const c = std.fmt.parseInt(i32, color_str, 0) catch default_color;
-                    try map_data.world_color.append(Color.init(c));
+                    const c = std.fmt.parseInt(i32, color_str[3..], 16) catch default_color;
+                    try map_data.world_color.append(Color.initFromHexToARGB(c).color);
                 } else {
-                    try map_data.world_color.append(Color.init(default_color));
+                    try map_data.world_color.append(Color.initFromHexToARGB(default_color).color);
                 }
             }
         }

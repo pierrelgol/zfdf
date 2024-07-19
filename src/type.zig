@@ -14,26 +14,17 @@ const std = @import("std");
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const Order = std.math.Order;
-const white = 0xFF_FF_FF_FF;
+const white = 0x00_FF_FF_FF;
 
 pub const Color = struct {
     color: i32,
 
-    pub inline fn init(hexcolor: i32) i32 {
-        var result: i32 = 0;
-        result |= (hexcolor & 0x00_FF_00_00) >> 16;
-        result |= (hexcolor & 0x00_00_FF_00);
-        result |= (hexcolor & 0x00_00_00_FF) << 16;
-        return result;
-    }
-
-    pub inline fn initFromHexToRGBA(hexcolor: i32) Color {
-        var result: Color = undefined;
-        result.color = 0;
-        result.color |= (hexcolor & 0xFF0000) >> 16;
-        result.color |= (hexcolor & 0x00FF00);
-        result.color |= (hexcolor & 0x0000FF) << 16;
-        return result;
+    pub inline fn initFromHexToARGB(hexcolor: i32) Color {
+        const r: i32 = @intCast((hexcolor & 0x00FF0000) >> 16);
+        const g: i32 = @intCast((hexcolor & 0x0000FF00) >> 8);
+        const b: i32 = @intCast((hexcolor & 0x000000FF) >> 0);    
+        const temp: Color= .{ .color = ((r << 16) | (g << 8) | b)};
+        return temp;
     }
 };
 

@@ -120,7 +120,7 @@ pub const Renderer = struct {
                     .z = (z * config.cam_scale),
                 };
                 const zoomed_point = world_point.mulScalar(config.cam_zoom);
-                const translated_point = zoomed_point.add(config.cam_position);
+                const translated_point = zoomed_point.sub(config.cam_position);
                 const rotated_point = translated_point.rotXYZ(config.cam_cos_rota, config.cam_sin_rota);
                 const projected_pixel = Pixel{
                     .x = @intFromFloat(((center_scale_x - @floor((rotated_point.x - rotated_point.y) * COS30)) * 0.5)),
@@ -148,6 +148,21 @@ pub const Renderer = struct {
         }
     }
 
+    fn lerpColor(start: i32, end: i32, t: f32) i32 {
+        const start_r: i32 = (start >> 16) & 0xFF;
+        const start_g: i32 = (start >> 8) & 0xFF;
+        const start_b: i32 = start & 0xFF;
+
+        const end_r: i32 = (end >> 16) & 0xFF;
+        const end_g: i32 = (end >> 8) & 0xFF;
+        const end_b: i32 = end & 0xFF;
+
+        const r: i32 = start_r + @as(i32, @intFromFloat((t * @as(f32, @floatFromInt(end_r - start_r)))));
+        const g: i32 = start_g + @as(i32, @intFromFloat((t * @as(f32, @floatFromInt(end_g - start_g)))));
+        const b: i32 = start_b + @as(i32, @intFromFloat((t * @as(f32, @floatFromInt(end_b - start_b)))));
+        return (r << 16) | (g << 8) | b;
+    }
+
     fn drawLine(renderer: *Renderer, start: Pixel, end: Pixel) void {
         const dx: i32 = end.x - start.x;
         const dy: i32 = end.y - start.y;
@@ -162,8 +177,14 @@ pub const Renderer = struct {
 
         var err: i32 = if (abs_dx > abs_dy) @divFloor(abs_dx, 2) else -@divFloor(abs_dy, 2);
 
+        const distance: f32 = @as(f32, @floatFromInt(dx * dx + dy * dy));
+        var current_distance: f32 = 0.0;
+
         while (true) {
-            renderer.mlx_backend.putPixelImage(x, y, start.color);
+            const t: f32 = current_distance / distance;
+            const lerped_color = lerpColor(start.color, end.color, t * 0.1);
+            renderer.mlx_backend.putPixelImage(x, y, lerped_color);
+
             if (x == end.x and y == end.y) break;
 
             const e2: i32 = err;
@@ -175,6 +196,8 @@ pub const Renderer = struct {
                 err += abs_dx;
                 y += sy;
             }
+
+            current_distance = @as(f32, @floatFromInt((x - start.x) * (x - start.x) + (y - start.y) * (y - start.y)));
         }
     }
 
